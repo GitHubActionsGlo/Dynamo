@@ -1,0 +1,37 @@
+name: Issue Workflow
+on: 
+  issues:
+    types: [opened,edited]
+jobs: 
+  #This job will check the issue to determine if it should be moved to a different repository
+  redirectIssue:
+    name: Check for issue transfer
+    runs-on: ubuntu-latest
+    env:
+      #The 'content_analysis_response' variable is used to store the script response on step one, 
+      #and then checked on step two to know if adding any labels is necessary.
+      #The initial 'undefined' value will be overridden when the script runs.
+      content_analysis_response: undefined
+    outputs:
+      result: ${{env.content_analysis_response}}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Remove conflicting chars
+        uses: frabert/replace-string-action@v1.2
+        id: remove_quotations
+        with:
+          pattern: "\""
+          string: ${{ github.event.issue.title }}
+          replace-with: '-'
+          flags: g    
+      - name: Check Information
+        id: check-info
+        run: |
+          echo "content_analysis_response=$(pwsh .\\.github\\scripts\\title_analyzer.ps1 "${{ steps.remove_quotations.outputs.replaced }}" )" >> $GITHUB_ENV
+      - name: Label issue
+        if: env.content_analysis_response != 'Valid'
+        #Uses DYNAMOBOTTOKEN to allow interaction between repos
+        run: |
+          curl -v -u admin:${{ secrets.DYNAMOBOTTOKEN }} -d '{"labels": ["${{env.content_analysis_response}}"]}' ${{ github.event.issue.url }}/labels
+
+  
